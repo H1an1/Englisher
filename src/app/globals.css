@@ -213,6 +213,7 @@ button {
 }
 
 .sentence-row-title {
+  display: block;
   overflow: hidden;
   font-size: 13px;
   font-weight: 700;
@@ -221,6 +222,7 @@ button {
 }
 
 .sentence-row-subtitle {
+  display: block;
   overflow: hidden;
   margin-top: 2px;
   color: var(--muted);
@@ -649,4 +651,3 @@ button {
     width: 100%;
   }
 }
-
