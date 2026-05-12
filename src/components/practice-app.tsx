@@ -41,6 +41,12 @@ type PracticeAppProps = {
   initialSession: PracticeSession;
 };
 
+type CreateSessionResponse = {
+  session: PracticeSession;
+  source: "youtube-captions" | "fixture";
+  warning?: string;
+};
+
 type YouTubeApi = {
   Player: new (
     element: HTMLElement,
@@ -87,6 +93,8 @@ export function PracticeApp({ initialSession }: PracticeAppProps) {
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [playerReady, setPlayerReady] = useState(false);
   const [audioUrls, setAudioUrls] = useState<Record<string, string>>({});
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [sessionWarning, setSessionWarning] = useState<string | null>(null);
 
   const clipTimerRef = useRef<number | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -167,7 +175,7 @@ export function PracticeApp({ initialSession }: PracticeAppProps) {
             },
             onError: () => {
               if (!cancelled) {
-                setPlayerError("YouTube player failed to load this fixture.");
+                setPlayerError("YouTube player failed to load this video.");
               }
             }
           }
@@ -195,20 +203,32 @@ export function PracticeApp({ initialSession }: PracticeAppProps) {
     };
   }, []);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const nextSession = createPracticeSession(sourceUrl);
+    setIsCreatingSession(true);
+    setSessionWarning(null);
 
-    setSession(nextSession);
-    setSourceUrl(nextSession.video.normalizedUrl);
-    setActiveIndex(0);
-    setMode("dictation");
-    setDictationInput({});
-    setDictationChecked({});
-    setShadowRecorded({});
-    setRecordingError(null);
-    setPlayerError(null);
-    setAudioUrls({});
+    try {
+      const response = await fetch("/api/practice-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: sourceUrl })
+      });
+
+      if (!response.ok) {
+        throw new Error("Practice session API rejected this URL.");
+      }
+
+      const result = (await response.json()) as CreateSessionResponse;
+      applyNewSession(result.session);
+      setSessionWarning(result.warning ?? null);
+    } catch (error) {
+      const nextSession = createPracticeSession(sourceUrl);
+      applyNewSession(nextSession);
+      setSessionWarning(`Could not reach caption ingest, using demo fixture. ${formatClientError(error)}`);
+    } finally {
+      setIsCreatingSession(false);
+    }
   }
 
   function selectSentence(index: number) {
@@ -323,13 +343,13 @@ export function PracticeApp({ initialSession }: PracticeAppProps) {
               type="url"
             />
           </label>
-          <button className="button primary" type="submit">
+          <button className="button primary" disabled={isCreatingSession} type="submit">
             <Check size={17} aria-hidden="true" />
-            Create session
+            {isCreatingSession ? "Creating..." : "Create session"}
           </button>
         </form>
 
-        <div className="status-pill">{session.status}</div>
+        <div className="status-pill">{isCreatingSession ? "ingesting" : session.status}</div>
       </header>
 
       <div className="workspace">
@@ -355,6 +375,7 @@ export function PracticeApp({ initialSession }: PracticeAppProps) {
           </div>
 
           <div className="practice-main">
+            {sessionWarning ? <div className="notice warning">{sessionWarning}</div> : null}
             <section aria-label="Current sentence">
               <div className="sentence-kicker">
                 Sentence {activeIndex + 1} of {session.sentences.length}
@@ -512,14 +533,29 @@ export function PracticeApp({ initialSession }: PracticeAppProps) {
               </div>
             </div>
             <div className="notes">
-              API-free build: controlled YouTube clip playback, microphone recording,
-              local transcript practice, localStorage persistence.
+              Caption ingest uses server-side yt-dlp when available. If captions are unavailable,
+              Englisher falls back to the bundled demo fixture and says so explicitly.
             </div>
           </section>
         </aside>
       </div>
     </main>
   );
+
+  function applyNewSession(nextSession: PracticeSession) {
+    createdAudioUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    createdAudioUrlsRef.current = [];
+    setSession(nextSession);
+    setSourceUrl(nextSession.video.normalizedUrl);
+    setActiveIndex(0);
+    setMode("dictation");
+    setDictationInput({});
+    setDictationChecked({});
+    setShadowRecorded({});
+    setRecordingError(null);
+    setPlayerError(null);
+    setAudioUrls({});
+  }
 }
 
 function SentenceSidebar({
@@ -597,6 +633,10 @@ function averageScore(
 
 function formatScore(score: number | null) {
   return score === null ? "-" : `${score}%`;
+}
+
+function formatClientError(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown client error.";
 }
 
 function createInitialPracticeState(initialSession: PracticeSession): SavedPracticeState {

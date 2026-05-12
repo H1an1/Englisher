@@ -252,6 +252,20 @@ button {
   padding: 18px;
 }
 
+.notice {
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.notice.warning {
+  border-color: #efd17c;
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
 .sentence-kicker {
   color: var(--muted);
   font-size: 12px;
