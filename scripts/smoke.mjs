@@ -33,7 +33,7 @@ try {
 
   await page
     .getByPlaceholder("Type what you hear")
-    .fill("I am honored to be with you today at your commencement from one of the finest universities in the world");
+    .fill("Thank You. I am honored to be with you today at your commencement from one of the finest universities in the world");
   await page.getByRole("button", { name: "Check dictation" }).click();
   await page.getByText("Dictation diff").waitFor();
 

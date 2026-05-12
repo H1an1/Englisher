@@ -29,34 +29,34 @@ export const FIXTURE_VIDEO_URL = "https://www.youtube.com/watch?v=UF8uR6Z6KLc";
 
 const FIXTURE_SENTENCES = [
   {
-    text: "I am honored to be with you today at your commencement from one of the finest universities in the world.",
-    startMs: 13200,
-    endMs: 20600
+    text: "Thank You. I am honored to be with you today at your commencement from one of the finest universities in the world.",
+    startMs: 22492,
+    endMs: 32738
   },
   {
     text: "Truth be told, I never graduated from college.",
-    startMs: 20800,
-    endMs: 24500
+    startMs: 35559,
+    endMs: 41559
   },
   {
     text: "And this is the closest I've ever gotten to a college graduation.",
-    startMs: 24600,
-    endMs: 29400
+    startMs: 41560,
+    endMs: 45929
   },
   {
     text: "Today I want to tell you three stories from my life. That's it.",
-    startMs: 31000,
-    endMs: 38600
+    startMs: 47980,
+    endMs: 52009
   },
   {
     text: "No big deal. Just three stories.",
-    startMs: 38700,
-    endMs: 41900
+    startMs: 52010,
+    endMs: 54849
   },
   {
     text: "The first story is about connecting the dots.",
-    startMs: 43400,
-    endMs: 47800
+    startMs: 55850,
+    endMs: 59569
   }
 ];
 

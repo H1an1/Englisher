@@ -42,9 +42,9 @@ describe("createPracticeSession", () => {
     expect(session.sentences.map((sentence) => sentence.index)).toEqual([0, 1, 2, 3, 4, 5]);
     expect(session.sentences[0]).toMatchObject({
       id: "sentence-1",
-      startMs: 13200,
-      endMs: 20600,
-      text: "I am honored to be with you today at your commencement from one of the finest universities in the world."
+      startMs: 22492,
+      endMs: 32738,
+      text: "Thank You. I am honored to be with you today at your commencement from one of the finest universities in the world."
     });
   });
 });
