@@ -75,7 +75,7 @@ declare global {
   }
 }
 
-const STORAGE_KEY = "englisher.practice.v2";
+const STORAGE_KEY = "englisher.practice.v3";
 const YOUTUBE_IFRAME_API_SRC = "https://www.youtube.com/iframe_api";
 let youtubeApiPromise: Promise<YouTubeApi> | null = null;
 

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildPracticeSessionFromCaptionLines, normalizeCaptionLines, parseJson3Captions } from "./ytdlp-ingest";
+import {
+  buildPracticeSessionFromCaptionLines,
+  normalizeCaptionLines,
+  parseJson3Captions,
+  selectBestEnglishCaptionTrack
+} from "./ytdlp-ingest";
 
 describe("parseJson3Captions", () => {
   it("turns YouTube json3 caption events into millisecond caption lines", () => {
@@ -38,6 +43,23 @@ describe("parseJson3Captions", () => {
 });
 
 describe("normalizeCaptionLines", () => {
+  it("merges wrapped human captions into sentence-sized clips", () => {
+    const lines = normalizeCaptionLines(
+      [
+        { index: 0, startMs: 22492, endMs: 30019, text: "Thank You. I am honored to be with you today" },
+        { index: 1, startMs: 30020, endMs: 32738, text: "at your commencement from one of the finest universities in the world." },
+        { index: 2, startMs: 35559, endMs: 41559, text: "Truth be told, I never graduated from college." }
+      ],
+      { automatic: false }
+    );
+
+    expect(normalizeText(lines[0].text)).toBe(
+      "Thank You. I am honored to be with you today at your commencement from one of the finest universities in the world."
+    );
+    expect(lines[0]).toMatchObject({ index: 0, startMs: 22492, endMs: 32738 });
+    expect(lines[1]).toMatchObject({ index: 1, startMs: 35559, endMs: 41559 });
+  });
+
   it("merges fragmented automatic captions into sentence-sized clips", () => {
     const lines = normalizeCaptionLines(
       [
@@ -76,6 +98,40 @@ describe("buildPracticeSessionFromCaptionLines", () => {
       text: "We're no strangers to love.",
       startMs: 1000,
       endMs: 2300
+    });
+  });
+});
+
+describe("selectBestEnglishCaptionTrack", () => {
+  it("prefers manual English subtitle tracks with yt-dlp suffixed language ids over automatic captions", () => {
+    const selected = selectBestEnglishCaptionTrack({
+      subtitles: {
+        "en-eEY6OEpapPo": [
+          {
+            ext: "json3",
+            name: "English - English",
+            url: "https://captions.example/manual.json3"
+          }
+        ]
+      },
+      automatic_captions: {
+        "en-orig": [
+          {
+            ext: "json3",
+            name: "English (Original)",
+            url: "https://captions.example/automatic.json3"
+          }
+        ]
+      }
+    });
+
+    expect(selected).toMatchObject({
+      automatic: false,
+      extension: "json3",
+      language: "en-eEY6OEpapPo",
+      track: {
+        url: "https://captions.example/manual.json3"
+      }
     });
   });
 });

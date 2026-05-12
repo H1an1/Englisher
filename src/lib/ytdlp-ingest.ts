@@ -6,7 +6,8 @@ import { promisify } from "node:util";
 import { parseVideoUrl, type PracticeSession } from "@/lib/practice-session";
 
 const execFileAsync = promisify(execFile);
-const CAPTION_LANGUAGES = "en,en-orig,en-US,en-GB,ai-en";
+const CAPTION_LANGUAGES = "en.*,en,en-orig,en-US,en-GB,ai-en";
+const CAPTION_FORMAT_PRIORITY = ["json3", "vtt", "srt"] as const;
 const MAX_CAPTION_LINES = 80;
 
 export type CaptionLine = {
@@ -20,8 +21,26 @@ type NormalizeOptions = {
   automatic: boolean;
 };
 
+type YtdlpCaptionTrack = {
+  ext?: string;
+  http_headers?: Record<string, string>;
+  name?: string;
+  url?: string;
+};
+
+type YtdlpCaptionGroups = Record<string, YtdlpCaptionTrack[]>;
+
 type YtdlpInfo = {
+  automatic_captions?: YtdlpCaptionGroups;
+  subtitles?: YtdlpCaptionGroups;
   title?: string;
+};
+
+export type SelectedCaptionTrack = {
+  automatic: boolean;
+  extension: string;
+  language: string;
+  track: YtdlpCaptionTrack;
 };
 
 type DownloadedCaptions = {
@@ -43,7 +62,8 @@ export async function createPracticeSessionFromYouTubeCaptions(rawUrl: string): 
     throw new Error("Only YouTube caption ingest is implemented in Englisher right now.");
   }
 
-  const [info, captions] = await Promise.all([extractVideoInfo(rawUrl), downloadEnglishCaptions(rawUrl)]);
+  const info = await extractVideoInfo(rawUrl);
+  const captions = await downloadEnglishCaptions(rawUrl, info);
   const parsedLines = parseCaptionContent(captions.content, captions.extension);
   const lines = normalizeCaptionLines(parsedLines, { automatic: captions.automatic }).slice(0, MAX_CAPTION_LINES);
 
@@ -122,7 +142,7 @@ export function parseJson3Captions(content: string): CaptionLine[] {
   return lines;
 }
 
-export function normalizeCaptionLines(lines: CaptionLine[], options: NormalizeOptions): CaptionLine[] {
+export function normalizeCaptionLines(lines: CaptionLine[], _options: NormalizeOptions): CaptionLine[] {
   let normalized = lines
     .map((line) => ({
       ...line,
@@ -132,15 +152,21 @@ export function normalizeCaptionLines(lines: CaptionLine[], options: NormalizeOp
 
   normalized = dedupeAdjacentLines(normalized);
   normalized = trimOverlappingCaptionEnds(normalized);
-
-  if (options.automatic) {
-    normalized = mergeFragmentedAutomaticCaptionLines(normalized);
-  }
+  normalized = mergeCaptionLineWraps(normalized);
 
   return normalized.map((line, index) => ({
     ...line,
     index
   }));
+}
+
+export function selectBestEnglishCaptionTrack(
+  info: Pick<YtdlpInfo, "automatic_captions" | "subtitles">
+): SelectedCaptionTrack | null {
+  return (
+    selectBestTrackFromCaptionGroups(info.subtitles ?? {}, false) ??
+    selectBestTrackFromCaptionGroups(info.automatic_captions ?? {}, true)
+  );
 }
 
 async function extractVideoInfo(rawUrl: string): Promise<YtdlpInfo> {
@@ -156,7 +182,15 @@ async function extractVideoInfo(rawUrl: string): Promise<YtdlpInfo> {
   return JSON.parse(stdout) as YtdlpInfo;
 }
 
-async function downloadEnglishCaptions(rawUrl: string): Promise<DownloadedCaptions> {
+async function downloadEnglishCaptions(rawUrl: string, info: YtdlpInfo): Promise<DownloadedCaptions> {
+  const selectedTrack = selectBestEnglishCaptionTrack(info);
+  if (selectedTrack) {
+    const downloadedTrack = await downloadSelectedCaptionTrack(selectedTrack);
+    if (downloadedTrack) {
+      return downloadedTrack;
+    }
+  }
+
   const manual = await downloadCaptionsForMode(rawUrl, false);
   if (manual) {
     return manual;
@@ -168,6 +202,30 @@ async function downloadEnglishCaptions(rawUrl: string): Promise<DownloadedCaptio
   }
 
   throw new Error("No English captions were downloaded by yt-dlp.");
+}
+
+async function downloadSelectedCaptionTrack(selectedTrack: SelectedCaptionTrack): Promise<DownloadedCaptions | null> {
+  if (!selectedTrack.track.url) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(selectedTrack.track.url, {
+      headers: selectedTrack.track.http_headers
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return {
+      automatic: selectedTrack.automatic,
+      content: await response.text(),
+      extension: selectedTrack.extension
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function downloadCaptionsForMode(rawUrl: string, automatic: boolean): Promise<DownloadedCaptions | null> {
@@ -245,6 +303,83 @@ async function findDownloadedCaptionFile(tempDir: string) {
   }
 
   return null;
+}
+
+function selectBestTrackFromCaptionGroups(
+  groups: YtdlpCaptionGroups,
+  automatic: boolean
+): SelectedCaptionTrack | null {
+  const languages = Object.entries(groups)
+    .filter(([, tracks]) => tracks.length > 0)
+    .filter(([language, tracks]) => isEnglishCaptionLanguage(language, tracks))
+    .sort(([languageA], [languageB]) => getEnglishLanguagePriority(languageA) - getEnglishLanguagePriority(languageB));
+
+  for (const [language, tracks] of languages) {
+    const track = selectPreferredCaptionFormat(tracks);
+    if (track?.url && track.ext) {
+      return {
+        automatic,
+        extension: track.ext.toLowerCase(),
+        language,
+        track
+      };
+    }
+  }
+
+  return null;
+}
+
+function selectPreferredCaptionFormat(tracks: YtdlpCaptionTrack[]) {
+  for (const extension of CAPTION_FORMAT_PRIORITY) {
+    const track = tracks.find((candidate) => candidate.url && candidate.ext?.toLowerCase() === extension);
+    if (track) {
+      return track;
+    }
+  }
+
+  return tracks.find((track) => track.url && track.ext);
+}
+
+function isEnglishCaptionLanguage(language: string, tracks: YtdlpCaptionTrack[]) {
+  if (isTranslatedCaptionTrack(tracks)) {
+    return false;
+  }
+
+  const normalizedLanguage = language.toLowerCase();
+  if (
+    normalizedLanguage === "en" ||
+    normalizedLanguage === "en-orig" ||
+    normalizedLanguage === "en-us" ||
+    normalizedLanguage === "en-gb" ||
+    normalizedLanguage.startsWith("en-") ||
+    normalizedLanguage.startsWith("en.")
+  ) {
+    return true;
+  }
+
+  return tracks.some((track) => track.name?.toLowerCase().startsWith("english"));
+}
+
+function isTranslatedCaptionTrack(tracks: YtdlpCaptionTrack[]) {
+  return tracks.some((track) => track.name?.toLowerCase().includes(" from "));
+}
+
+function getEnglishLanguagePriority(language: string) {
+  const normalizedLanguage = language.toLowerCase();
+
+  if (normalizedLanguage === "en" || normalizedLanguage === "en-orig") {
+    return 0;
+  }
+
+  if (normalizedLanguage === "en-us" || normalizedLanguage === "en-gb") {
+    return 1;
+  }
+
+  if (normalizedLanguage.startsWith("en-") || normalizedLanguage.startsWith("en.")) {
+    return 2;
+  }
+
+  return 3;
 }
 
 function parseCaptionContent(content: string, extension: string): CaptionLine[] {
@@ -346,7 +481,7 @@ function trimOverlappingCaptionEnds(lines: CaptionLine[]) {
   });
 }
 
-function mergeFragmentedAutomaticCaptionLines(lines: CaptionLine[]) {
+function mergeCaptionLineWraps(lines: CaptionLine[]) {
   const merged: CaptionLine[] = [];
 
   for (let index = 0; index < lines.length; index += 1) {
