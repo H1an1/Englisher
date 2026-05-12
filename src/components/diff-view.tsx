@@ -1,4 +1,5 @@
 import { scoreDiff, type WordDiff } from "@/lib/word-diff";
+import { getDiffTokenText } from "@/lib/diff-format";
 
 type DiffViewProps = {
   title: string;
@@ -18,14 +19,7 @@ export function DiffView({ title, diff }: DiffViewProps) {
       </div>
       <div className="diff-line">
         {diff.operations.map((operation, index) => {
-          const text =
-            operation.type === "insert"
-              ? `+ ${operation.actual}`
-              : operation.type === "delete"
-                ? `- ${operation.expected}`
-                : operation.type === "substitute"
-                  ? `${operation.expected} / ${operation.actual}`
-                  : operation.expected;
+          const text = getDiffTokenText(operation);
 
           return (
             <span className={`diff-token ${operation.type}`} key={`${operation.type}-${index}`}>
@@ -37,4 +31,3 @@ export function DiffView({ title, diff }: DiffViewProps) {
     </section>
   );
 }
-

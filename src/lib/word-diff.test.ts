@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { buildWordDiff, normalizeWords, scoreDiff } from "./word-diff";
 
 describe("normalizeWords", () => {
-  it("lowercases text and removes punctuation without losing contractions", () => {
+  it("lowercases text, removes punctuation, and expands common contractions", () => {
     expect(normalizeWords("I'm learning, slowly-but surely.")).toEqual([
-      "i'm",
+      "i",
+      "am",
       "learning",
       "slowly",
       "but",
@@ -40,5 +41,21 @@ describe("buildWordDiff", () => {
     ]);
     expect(scoreDiff(diff)).toBe(60);
   });
-});
 
+  it("treats a missing phrase before a contraction as deletions instead of misleading substitutions", () => {
+    const diff = buildWordDiff(
+      "Thank You. I am honored to be with you today at your commencement from one of the finest universities in the world.",
+      "I'm hornerd to be with you today to for your comancement for one of those fine university in this world"
+    );
+
+    expect(diff.operations.slice(0, 7)).toEqual([
+      { type: "delete", expected: "Thank", actual: null },
+      { type: "delete", expected: "You", actual: null },
+      { type: "equal", expected: "I", actual: "I" },
+      { type: "equal", expected: "am", actual: "am" },
+      { type: "substitute", expected: "honored", actual: "hornerd" },
+      { type: "equal", expected: "to", actual: "to" },
+      { type: "equal", expected: "be", actual: "be" }
+    ]);
+  });
+});

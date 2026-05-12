@@ -15,6 +15,48 @@ type Token = {
   normalized: string;
 };
 
+const CONTRACTION_EXPANSIONS: Record<string, string[]> = {
+  "i'm": ["i", "am"],
+  "you're": ["you", "are"],
+  "he's": ["he", "is"],
+  "she's": ["she", "is"],
+  "it's": ["it", "is"],
+  "we're": ["we", "are"],
+  "they're": ["they", "are"],
+  "i've": ["i", "have"],
+  "you've": ["you", "have"],
+  "we've": ["we", "have"],
+  "they've": ["they", "have"],
+  "i'll": ["i", "will"],
+  "you'll": ["you", "will"],
+  "he'll": ["he", "will"],
+  "she'll": ["she", "will"],
+  "it'll": ["it", "will"],
+  "we'll": ["we", "will"],
+  "they'll": ["they", "will"],
+  "i'd": ["i", "would"],
+  "you'd": ["you", "would"],
+  "he'd": ["he", "would"],
+  "she'd": ["she", "would"],
+  "we'd": ["we", "would"],
+  "they'd": ["they", "would"],
+  "can't": ["can", "not"],
+  "won't": ["will", "not"],
+  "don't": ["do", "not"],
+  "doesn't": ["does", "not"],
+  "didn't": ["did", "not"],
+  "isn't": ["is", "not"],
+  "aren't": ["are", "not"],
+  "wasn't": ["was", "not"],
+  "weren't": ["were", "not"],
+  "haven't": ["have", "not"],
+  "hasn't": ["has", "not"],
+  "hadn't": ["had", "not"],
+  "wouldn't": ["would", "not"],
+  "shouldn't": ["should", "not"],
+  "couldn't": ["could", "not"]
+};
+
 export function normalizeWords(text: string): string[] {
   return tokenize(text).map((token) => token.normalized);
 }
@@ -111,10 +153,33 @@ function tokenize(text: string): Token[] {
     .flatMap((chunk) => chunk.split(/[^\p{L}\p{N}']+/u))
     .map((chunk) => chunk.trim())
     .filter(Boolean)
-    .map((original) => ({
-      original,
-      normalized: original.toLowerCase()
-    }));
+    .flatMap(expandToken);
+}
+
+function expandToken(original: string): Token[] {
+  const normalized = original.toLowerCase();
+  const expansion = CONTRACTION_EXPANSIONS[normalized];
+
+  if (!expansion) {
+    return [{ original, normalized }];
+  }
+
+  return expansion.map((part, index) => ({
+    original: formatExpandedOriginal(original, part, index),
+    normalized: part
+  }));
+}
+
+function formatExpandedOriginal(source: string, normalizedPart: string, index: number) {
+  if (normalizedPart === "i") {
+    return "I";
+  }
+
+  if (index === 0 && /^[A-Z]/.test(source)) {
+    return normalizedPart.charAt(0).toUpperCase() + normalizedPart.slice(1);
+  }
+
+  return normalizedPart;
 }
 
 function buildDistanceTable(expected: Token[], actual: Token[]): number[][] {
@@ -151,4 +216,3 @@ function buildDistanceTable(expected: Token[], actual: Token[]): number[][] {
 
   return distances;
 }
-
