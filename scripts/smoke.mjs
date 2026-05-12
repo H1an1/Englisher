@@ -6,8 +6,15 @@ const consoleErrors = [];
 
 await mkdir("artifacts", { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+const browser = await chromium.launch({
+  headless: true,
+  args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"]
+});
+const context = await browser.newContext({
+  permissions: ["microphone"],
+  viewport: { width: 1440, height: 960 }
+});
+const page = await context.newPage();
 
 page.on("console", (message) => {
   if (message.type() === "error") {
@@ -22,20 +29,23 @@ try {
 
   await page.getByPlaceholder("Paste a YouTube or video link").fill("https://x.com/example/status/123");
   await page.getByRole("button", { name: "Create session" }).click();
-  await page.getByText("https://x.com/example/status/123").waitFor();
+  await page.getByText("https://www.youtube.com/watch?v=UF8uR6Z6KLc").waitFor();
 
   await page
     .getByPlaceholder("Type what you hear")
-    .fill("When you shadow a speaker you borrow their rhythm before you borrow their words");
+    .fill("I am honored to be with you today at your commencement from one of the finest universities in the world");
   await page.getByRole("button", { name: "Check dictation" }).click();
   await page.getByText("Dictation diff").waitFor();
 
   await page.getByRole("tab", { name: "Shadowing" }).click();
   await page
-    .getByPlaceholder("Type your spoken version")
-    .fill("When you follow a speaker you borrow the rhythm before words");
-  await page.getByRole("button", { name: "Compare shadowing" }).click();
-  await page.getByText("Shadowing diff").waitFor();
+    .getByLabel("Current sentence")
+    .getByText("I am honored to be with you today")
+    .waitFor();
+  await page.getByRole("button", { name: "Record" }).click();
+  await page.getByRole("button", { name: "Stop" }).click();
+  await page.locator("audio.audio-preview").waitFor();
+  await page.getByText("needs ASR").waitFor();
 
   await page.screenshot({ path: "artifacts/desktop-smoke.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });

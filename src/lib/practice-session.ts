@@ -25,13 +25,39 @@ export type PracticeSession = {
   sentences: SentenceClip[];
 };
 
-const DEMO_SENTENCES = [
-  "When you shadow a speaker, you borrow their rhythm before you borrow their words.",
-  "Listen once for the shape of the sentence, then listen again for the details.",
-  "Dictation trains your ear to notice small sounds that reading often hides.",
-  "A short pause can tell you where one idea ends and the next one begins.",
-  "Your goal is not to sound perfect, but to stay close to the original timing.",
-  "Repeat the sentence until the words feel natural at full speed."
+export const FIXTURE_VIDEO_URL = "https://www.youtube.com/watch?v=UF8uR6Z6KLc";
+
+const FIXTURE_SENTENCES = [
+  {
+    text: "I am honored to be with you today at your commencement from one of the finest universities in the world.",
+    startMs: 13200,
+    endMs: 20600
+  },
+  {
+    text: "Truth be told, I never graduated from college.",
+    startMs: 20800,
+    endMs: 24500
+  },
+  {
+    text: "And this is the closest I've ever gotten to a college graduation.",
+    startMs: 24600,
+    endMs: 29400
+  },
+  {
+    text: "Today I want to tell you three stories from my life. That's it.",
+    startMs: 31000,
+    endMs: 38600
+  },
+  {
+    text: "No big deal. Just three stories.",
+    startMs: 38700,
+    endMs: 41900
+  },
+  {
+    text: "The first story is about connecting the dots.",
+    startMs: 43400,
+    endMs: 47800
+  }
 ];
 
 export function parseVideoUrl(rawUrl: string): ParsedVideo {
@@ -70,21 +96,21 @@ export function parseVideoUrl(rawUrl: string): ParsedVideo {
   }
 }
 
-export function createPracticeSession(videoUrl: string): PracticeSession {
-  const video = parseVideoUrl(videoUrl);
+export function createPracticeSession(_videoUrl: string): PracticeSession {
+  const video = parseVideoUrl(FIXTURE_VIDEO_URL);
 
   return {
     id: `local-${hashString(video.normalizedUrl || video.inputUrl)}`,
     status: "ready",
-    title: video.platform === "youtube" ? "YouTube shadowing session" : "External video shadowing session",
+    title: "Steve Jobs Stanford commencement fixture",
     createdAt: new Date().toISOString(),
     video,
-    sentences: DEMO_SENTENCES.map((text, index) => ({
+    sentences: FIXTURE_SENTENCES.map((sentence, index) => ({
       id: `sentence-${index + 1}`,
       index,
-      text,
-      startMs: index * 7200,
-      endMs: index * 7200 + estimateSentenceDuration(text)
+      text: sentence.text,
+      startMs: sentence.startMs,
+      endMs: sentence.endMs
     }))
   };
 }
@@ -108,12 +134,7 @@ function getYouTubeVideoId(url: URL, host: string): string | null {
 
 function cleanVideoId(value: string | null): string | null {
   const id = value?.trim();
-  return id && /^[a-zA-Z0-9_-]{6,}$/.test(id) ? id : null;
-}
-
-function estimateSentenceDuration(sentence: string): number {
-  const wordCount = sentence.split(/\s+/).length;
-  return Math.max(3200, wordCount * 520);
+  return id && /^[a-zA-Z0-9_-]{11}$/.test(id) ? id : null;
 }
 
 function hashString(value: string): string {
@@ -126,4 +147,3 @@ function hashString(value: string): string {
 
   return Math.abs(hash).toString(36);
 }
-

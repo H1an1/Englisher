@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createPracticeSession, parseVideoUrl } from "./practice-session";
+import { FIXTURE_VIDEO_URL, createPracticeSession, parseVideoUrl } from "./practice-session";
 
 describe("parseVideoUrl", () => {
   it("normalizes YouTube watch links into an embeddable video reference", () => {
@@ -21,21 +21,30 @@ describe("parseVideoUrl", () => {
     expect(parsed.embedUrl).toBeNull();
     expect(parsed.videoId).toBeNull();
   });
-});
 
-describe("createPracticeSession", () => {
-  it("creates a ready local session with ordered sentence clips", () => {
-    const session = createPracticeSession("https://youtu.be/dQw4w9WgXcQ");
+  it("rejects malformed YouTube IDs instead of embedding broken videos", () => {
+    const parsed = parseVideoUrl("https://www.youtube.com/watch?v=abcdef");
 
-    expect(session.status).toBe("ready");
-    expect(session.video.platform).toBe("youtube");
-    expect(session.sentences.length).toBeGreaterThan(4);
-    expect(session.sentences.map((sentence) => sentence.index)).toEqual([0, 1, 2, 3, 4, 5]);
-    expect(session.sentences[0]).toMatchObject({
-      id: "sentence-1",
-      startMs: 0,
-      text: "When you shadow a speaker, you borrow their rhythm before you borrow their words."
-    });
+    expect(parsed.platform).toBe("external");
+    expect(parsed.videoId).toBeNull();
+    expect(parsed.embedUrl).toBeNull();
   });
 });
 
+describe("createPracticeSession", () => {
+  it("creates the fixed demo session with ordered transcript clips matching the fixture video", () => {
+    const session = createPracticeSession("https://x.com/example/status/123");
+
+    expect(session.status).toBe("ready");
+    expect(session.video.platform).toBe("youtube");
+    expect(session.video.normalizedUrl).toBe(FIXTURE_VIDEO_URL);
+    expect(session.sentences).toHaveLength(6);
+    expect(session.sentences.map((sentence) => sentence.index)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(session.sentences[0]).toMatchObject({
+      id: "sentence-1",
+      startMs: 13200,
+      endMs: 20600,
+      text: "I am honored to be with you today at your commencement from one of the finest universities in the world."
+    });
+  });
+});
